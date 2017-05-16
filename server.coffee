@@ -34,16 +34,18 @@ options =
 sessionFactory = handlerFactory container, shell
 
 sshServer = new ssh2.Server options, (client, info) ->
-  session = sessionFactory.instance()
+  session = null
   log.info clientIp: info.ip, 'Client connected'
   client.on 'authentication', authenticationHandler
-  client.on 'ready', -> client.on('session', session.handler)
+  client.on 'authentication', (ctx) ->
+    session = sessionFactory.instance(ctx.username)
+  client.on 'ready', -> client.on('session', session.handler)    
   client.on 'end', ->
     log.info clientIp: info.ip, 'Client disconnected'
     session.close()
 
 sshServer.listen sshPort, ip, ->
-  log.info 'Docker-SSH ~ Because every container should be accessible'
+  log.info 'Docker-SSH'
   log.info {host: @address().address, port: @address().port}, 'Listening'
 
 webserver.start httpPort, sessionFactory if httpEnabled

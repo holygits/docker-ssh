@@ -7,20 +7,19 @@ docker  = new Docker socketPath: '/var/run/docker.sock'
 spaces = (text, length) ->(' ' for i in [0..length-text.length]).join ''
 header = (container) ->
   "\r\n" +
-  " ###############################################################\r\n" +
-  " ## Docker SSH ~ Because every container should be accessible ##\r\n" +
-  " ###############################################################\r\n" +
-  " ## container | #{container}#{spaces container, 45}##\r\n" +
-  " ###############################################################\r\n" +
+  " Docker SSH \r\n" +
+  " Welcome to: #{container}\r\n" +
   "\r\n"
 
 module.exports = (container, shell) ->
-  instance: ->
+
+  instance: (username) ->
     session = null
     channel = null
     stream = null
     resizeTerm = null
     session = null
+    user = username
 
     closeChannel = ->
       channel.exit(0) if channel
@@ -29,15 +28,16 @@ module.exports = (container, shell) ->
       stream.end() if stream
 
     close: -> stopTerm()
+    
     handler: (accept, reject) ->
       session = accept()
       termInfo = null
 
       session.once 'exec', (accept, reject, info) ->
-        log.info {container: container, command: info.command}, 'Exec'
+        log.info {container: container, user: user, command: info.command}, 'Exec'
         channel = accept()
         _container = docker.getContainer container
-        _container.exec {Cmd: [shell, '-c', info.command], AttachStdin: true, AttachStdout: true, AttachStderr: true, Tty: false}, (err, exec) ->
+        _container.exec {User: user, Cmd: [shell, '-c', info.command], AttachStdin: true, AttachStdout: true, AttachStderr: true, Tty: false}, (err, exec) ->
           if err
             log.error {container: container}, 'Exec error', err
             return closeChannel()
@@ -63,12 +63,12 @@ module.exports = (container, shell) ->
         log.error {container: container}, err
 
       session.on 'shell', (accept, reject) ->
-        log.info {container: container}, 'Opening shell'
+        log.info {container: container, user: user}, 'Opening shell'
         channel = accept()
         channel.write "#{header container}"
 
         _container = docker.getContainer container
-        _container.exec {Cmd: [shell], AttachStdin: true, AttachStdout: true, Tty: true}, (err, exec) ->
+        _container.exec {User: user, Cmd: [shell], AttachStdin: true, AttachStdout: true, Tty: true}, (err, exec) ->
           if err
             log.error {container: container}, 'Exec error', err
             return closeChannel()
